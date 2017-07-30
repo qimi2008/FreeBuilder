@@ -67,6 +67,16 @@ public class Block extends Excerpt implements SourceBuilder {
   }
 
   /**
+   * Pick an unused variable name, preferably {@code preferredName} but renamed if necessary to
+   * avoid collisions.
+   */
+  public Excerpt pickUnusedVariableName(String preferredName) {
+    String name = pickName(preferredName);
+    body.scope().add(new Variable(name));
+    return Excerpts.add("%s", name);
+  }
+
+  /**
    * Contains variable declaration to an inner block.
    */
   public Block innerBlock() {

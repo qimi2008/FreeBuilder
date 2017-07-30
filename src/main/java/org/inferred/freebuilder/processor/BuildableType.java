@@ -42,6 +42,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 
+@FreeBuilder
 abstract class BuildableType {
 
   /** How to merge the values from one Builder into another. */
@@ -54,6 +55,7 @@ abstract class BuildableType {
     MERGE_DIRECTLY, TO_BUILDER_AND_MERGE
   }
 
+  public abstract TypeMirror type();
   public abstract ParameterizedType builderType();
   public abstract MergeBuilderMethod mergeBuilder();
   public abstract PartialToBuilderMethod partialToBuilder();
@@ -145,6 +147,7 @@ abstract class BuildableType {
     }
 
     return Optional.of(new Builder()
+        .type(candidateType)
         .builderType(ParameterizedType.from(builder))
         .mergeBuilder(mergeFromBuilderMethod)
         .partialToBuilder(partialToBuilderMethod)
