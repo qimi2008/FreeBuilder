@@ -7,10 +7,12 @@ import static org.inferred.freebuilder.processor.BuilderMethods.addAllMethod;
 import static org.inferred.freebuilder.processor.BuilderMethods.addMethod;
 import static org.inferred.freebuilder.processor.BuilderMethods.clearMethod;
 import static org.inferred.freebuilder.processor.BuilderMethods.getBuildersMethod;
+import static org.inferred.freebuilder.processor.BuilderMethods.mutator;
 import static org.inferred.freebuilder.processor.Util.erasesToAnyOf;
 import static org.inferred.freebuilder.processor.Util.upperBound;
 import static org.inferred.freebuilder.processor.util.Block.methodBody;
 import static org.inferred.freebuilder.processor.util.ModelUtils.maybeDeclared;
+import static org.inferred.freebuilder.processor.util.feature.FunctionPackage.FUNCTION_PACKAGE;
 import static org.inferred.freebuilder.processor.util.feature.SourceLevel.diamondOperator;
 
 import com.google.common.base.Optional;
@@ -20,6 +22,7 @@ import org.inferred.freebuilder.processor.Metadata.Property;
 import org.inferred.freebuilder.processor.util.Block;
 import org.inferred.freebuilder.processor.util.Excerpt;
 import org.inferred.freebuilder.processor.util.Excerpts;
+import org.inferred.freebuilder.processor.util.ParameterizedType;
 import org.inferred.freebuilder.processor.util.SourceBuilder;
 
 import java.util.ArrayList;
@@ -79,6 +82,7 @@ class BuildableListProperty extends PropertyCodeGenerator {
     addBuilderVarargsAdd(code);
     addPreStreamsValueInstanceAddAll(code);
     addPreStreamsBuilderAddAll(code);
+    addMutate(code);
     addClear(code);
     addGetter(code);
   }
@@ -163,6 +167,24 @@ class BuildableListProperty extends PropertyCodeGenerator {
         .add(Excerpts.forEach(element.builderType(), "elementBuilders", addMethod(property)))
         .addLine("  return (%s) this;", metadata.getBuilder());
     code.add(body)
+        .addLine("}");
+  }
+
+  private void addMutate(SourceBuilder code) {
+    ParameterizedType consumer = code.feature(FUNCTION_PACKAGE).consumer().orNull();
+    if (consumer == null) {
+      return;
+    }
+    code.addLine("")
+        .addLine("public %s %s(%s<? super %s<%s>> mutator) {",
+            metadata.getBuilder(),
+            mutator(property),
+            consumer.getQualifiedName(),
+            List.class,
+            element.builderType())
+        .add(methodBody(code, "mutator")
+            .addLine("  mutator.accept(%s);", property.getField())
+            .addLine("  return (%s) this;", metadata.getBuilder()))
         .addLine("}");
   }
 
