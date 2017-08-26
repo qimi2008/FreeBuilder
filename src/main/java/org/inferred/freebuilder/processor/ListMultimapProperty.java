@@ -369,7 +369,7 @@ class ListMultimapProperty extends PropertyCodeGenerator {
   }
 
   @Override
-  public void addFinalFieldAssignment(SourceBuilder code, Excerpt finalField, String builder) {
+  public void addFinalFieldAssignment(Block code, Excerpt finalField, String builder) {
     code.addLine("%s = %s.copyOf(%s);",
             finalField, ImmutableListMultimap.class, property.getField().on(builder));
   }

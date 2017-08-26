@@ -430,7 +430,7 @@ class ListProperty extends PropertyCodeGenerator {
   }
 
   @Override
-  public void addFinalFieldAssignment(SourceBuilder code, Excerpt finalField, String builder) {
+  public void addFinalFieldAssignment(Block code, Excerpt finalField, String builder) {
     Excerpt immutableListMethod;
     if (code.feature(GUAVA).isAvailable()) {
       immutableListMethod = Excerpts.add("%s.copyOf", ImmutableList.class);

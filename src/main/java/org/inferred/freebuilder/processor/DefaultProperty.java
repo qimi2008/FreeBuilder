@@ -171,7 +171,7 @@ class DefaultProperty extends PropertyCodeGenerator {
   }
 
   @Override
-  public void addFinalFieldAssignment(SourceBuilder code, Excerpt finalField, String builder) {
+  public void addFinalFieldAssignment(Block code, Excerpt finalField, String builder) {
     code.addLine("%s = %s;", finalField, property.getField().on(builder));
   }
 

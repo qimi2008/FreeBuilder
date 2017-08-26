@@ -502,21 +502,35 @@ public class CodeGenerator {
       code.addLine("  private final %s<%s> %s;",
           EnumSet.class, metadata.getPropertyEnum(), UNSET_PROPERTIES);
     }
-    // Constructor
+    addPartialConstructor(code, metadata, hasRequiredProperties);
+    addPartialGetters(code, metadata);
+    addPartialToBuilderMethod(code, metadata);
+    addPartialEquals(code, metadata, hasRequiredProperties);
+    addPartialHashCode(code, metadata, hasRequiredProperties);
+    addPartialToString(code, metadata);
+    code.addLine("}");
+  }
+
+  private static void addPartialConstructor(SourceBuilder code, Metadata metadata,
+      boolean hasRequiredProperties) {
     code.addLine("")
         .addLine("  %s(%s builder) {",
             metadata.getPartialType().getSimpleName(),
             metadata.getGeneratedBuilder());
+    Block body = methodBody(code, "builder");
     for (Property property : metadata.getProperties()) {
       property.getCodeGenerator()
-          .addPartialFieldAssignment(code, property.getField().on("this"), "builder");
+          .addPartialFieldAssignment(body, property.getField().on("this"), "builder");
     }
     if (hasRequiredProperties) {
-      code.addLine("    %s = %s.clone();",
+      body.addLine("    %s = %s.clone();",
           UNSET_PROPERTIES.on("this"), UNSET_PROPERTIES.on("builder"));
     }
-    code.addLine("  }");
-    // Getters
+    code.add(body)
+        .addLine("  }");
+  }
+
+  private static void addPartialGetters(SourceBuilder code, Metadata metadata) {
     for (Property property : metadata.getProperties()) {
       code.addLine("")
           .addLine("  @%s", Override.class);
@@ -535,8 +549,42 @@ public class CodeGenerator {
       code.add(";\n");
       code.addLine("  }");
     }
-    addPartialToBuilderMethod(code, metadata);
-    // Equals
+  }
+
+  private static void addPartialToBuilderMethod(SourceBuilder code, Metadata metadata) {
+    if (!metadata.getHasToBuilderMethod()) {
+      return;
+    }
+    BuilderFactory builderFactory = metadata.getBuilderFactory().orNull();
+    if (builderFactory == BuilderFactory.NO_ARGS_CONSTRUCTOR) {
+      code.addLine("")
+          .addLine("  private static class PartialBuilder%s extends %s {",
+              metadata.getBuilder().declarationParameters(), metadata.getBuilder())
+          .addLine("    @Override public %s build() {", metadata.getType())
+          .addLine("      return buildPartial();")
+          .addLine("    }")
+          .addLine("  }");
+    }
+    code.addLine("")
+        .addLine("  @%s", Override.class)
+        .addLine("  public %s toBuilder() {", metadata.getBuilder());
+    if (builderFactory == BuilderFactory.NO_ARGS_CONSTRUCTOR) {
+      code.addLine("    %s builder = new PartialBuilder%s();",
+              metadata.getBuilder(), metadata.getBuilder().typeParametersOrDiamondOperator());
+      Block block = new Block(code);
+      for (Property property : metadata.getProperties()) {
+        property.getCodeGenerator().addSetBuilderFromPartial(block, "builder");
+      }
+      code.add(block)
+          .addLine("    return builder;");
+    } else {
+      code.addLine("    throw new %s();", UnsupportedOperationException.class);
+    }
+    code.addLine("  }");
+  }
+
+  private static void addPartialEquals(SourceBuilder code, Metadata metadata,
+      boolean hasRequiredProperties) {
     if (metadata.standardMethodUnderride(StandardMethod.EQUALS) != FINAL) {
       code.addLine("")
           .addLine("  @%s", Override.class)
@@ -603,7 +651,10 @@ public class CodeGenerator {
       code.add(body)
           .addLine("  }");
     }
-    // Hash code
+  }
+
+  private static void addPartialHashCode(SourceBuilder code, Metadata metadata,
+      boolean hasRequiredProperties) {
     if (metadata.standardMethodUnderride(StandardMethod.HASH_CODE) != FINAL) {
       code.addLine("")
           .addLine("  @%s", Override.class)
@@ -622,7 +673,9 @@ public class CodeGenerator {
       }
       code.addLine("  }");
     }
-    // toString
+  }
+
+  private static void addPartialToString(SourceBuilder code, Metadata metadata) {
     if (metadata.standardMethodUnderride(StandardMethod.TO_STRING) != FINAL) {
       code.addLine("")
           .addLine("  @%s", Override.class)
@@ -636,39 +689,6 @@ public class CodeGenerator {
       code.add(body)
           .addLine("  }");
     }
-    code.addLine("}");
-  }
-
-  private static void addPartialToBuilderMethod(SourceBuilder code, Metadata metadata) {
-    if (!metadata.getHasToBuilderMethod()) {
-      return;
-    }
-    BuilderFactory builderFactory = metadata.getBuilderFactory().orNull();
-    if (builderFactory == BuilderFactory.NO_ARGS_CONSTRUCTOR) {
-      code.addLine("")
-          .addLine("  private static class PartialBuilder%s extends %s {",
-              metadata.getBuilder().declarationParameters(), metadata.getBuilder())
-          .addLine("    @Override public %s build() {", metadata.getType())
-          .addLine("      return buildPartial();")
-          .addLine("    }")
-          .addLine("  }");
-    }
-    code.addLine("")
-        .addLine("  @%s", Override.class)
-        .addLine("  public %s toBuilder() {", metadata.getBuilder());
-    if (builderFactory == BuilderFactory.NO_ARGS_CONSTRUCTOR) {
-      code.addLine("    %s builder = new PartialBuilder%s();",
-              metadata.getBuilder(), metadata.getBuilder().typeParametersOrDiamondOperator());
-      Block block = new Block(code);
-      for (Property property : metadata.getProperties()) {
-        property.getCodeGenerator().addSetBuilderFromPartial(block, "builder");
-      }
-      code.add(block)
-          .addLine("    return builder;");
-    } else {
-      code.addLine("    throw new %s();", UnsupportedOperationException.class);
-    }
-    code.addLine("  }");
   }
 
   private static void writeToStringWithBuilder(Block code, Metadata metadata, boolean isPartial) {

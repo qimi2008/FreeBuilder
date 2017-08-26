@@ -445,7 +445,7 @@ class SortedSetProperty extends PropertyCodeGenerator {
   }
 
   @Override
-  public void addFinalFieldAssignment(SourceBuilder code, Excerpt finalField, String builder) {
+  public void addFinalFieldAssignment(Block code, Excerpt finalField, String builder) {
     code.addLine("if (%s == null) {", property.getField().on(builder));
     if (code.feature(GUAVA).isAvailable()) {
       code.addLine("  %s = %s.<%s>of();",

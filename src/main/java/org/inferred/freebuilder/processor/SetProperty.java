@@ -408,7 +408,7 @@ class SetProperty extends PropertyCodeGenerator {
   }
 
   @Override
-  public void addFinalFieldAssignment(SourceBuilder code, Excerpt finalField, String builder) {
+  public void addFinalFieldAssignment(Block code, Excerpt finalField, String builder) {
     Excerpt immutableSetMethod;
     if (code.feature(GUAVA).isAvailable()) {
       immutableSetMethod = Excerpts.add("%s.copyOf", ImmutableSet.class);

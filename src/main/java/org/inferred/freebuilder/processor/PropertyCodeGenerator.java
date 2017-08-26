@@ -108,12 +108,10 @@ public abstract class PropertyCodeGenerator {
   public abstract void addBuilderFieldAccessors(SourceBuilder code);
 
   /** Add the final assignment of the property to the value object's source code. */
-  public abstract void addFinalFieldAssignment(
-      SourceBuilder code, Excerpt finalField, String builder);
+  public abstract void addFinalFieldAssignment(Block code, Excerpt finalField, String builder);
 
   /** Add the final assignment of the property to the partial value object's source code. */
-  public void addPartialFieldAssignment(
-      SourceBuilder code, Excerpt finalField, String builder) {
+  public void addPartialFieldAssignment(Block code, Excerpt finalField, String builder) {
     addFinalFieldAssignment(code, finalField, builder);
   }
 

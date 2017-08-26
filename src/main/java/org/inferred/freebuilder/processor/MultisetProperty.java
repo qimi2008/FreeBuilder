@@ -394,7 +394,7 @@ class MultisetProperty extends PropertyCodeGenerator {
   }
 
   @Override
-  public void addFinalFieldAssignment(SourceBuilder code, Excerpt finalField, String builder) {
+  public void addFinalFieldAssignment(Block code, Excerpt finalField, String builder) {
     code.addLine("%s = %s.copyOf(%s);",
             finalField, ImmutableMultiset.class, property.getField().on(builder));
   }

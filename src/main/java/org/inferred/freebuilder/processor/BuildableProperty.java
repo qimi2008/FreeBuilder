@@ -160,12 +160,12 @@ class BuildableProperty extends PropertyCodeGenerator {
   }
 
   @Override
-  public void addFinalFieldAssignment(SourceBuilder code, Excerpt finalField, String builder) {
+  public void addFinalFieldAssignment(Block code, Excerpt finalField, String builder) {
     code.addLine("%s = %s.build();", finalField, property.getField().on(builder));
   }
 
   @Override
-  public void addPartialFieldAssignment(SourceBuilder code, Excerpt finalField, String builder) {
+  public void addPartialFieldAssignment(Block code, Excerpt finalField, String builder) {
     code.addLine("%s = %s.buildPartial();", finalField, property.getField().on(builder));
   }
 
