@@ -6,6 +6,7 @@ import static org.inferred.freebuilder.processor.BuilderMethods.addAllBuildersOf
 import static org.inferred.freebuilder.processor.BuilderMethods.addAllMethod;
 import static org.inferred.freebuilder.processor.BuilderMethods.addMethod;
 import static org.inferred.freebuilder.processor.BuilderMethods.clearMethod;
+import static org.inferred.freebuilder.processor.BuilderMethods.getBuildersMethod;
 import static org.inferred.freebuilder.processor.Util.erasesToAnyOf;
 import static org.inferred.freebuilder.processor.Util.upperBound;
 import static org.inferred.freebuilder.processor.util.Block.methodBody;
@@ -24,6 +25,7 @@ import org.inferred.freebuilder.processor.util.SourceBuilder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import javax.lang.model.type.DeclaredType;
@@ -78,6 +80,7 @@ class BuildableListProperty extends PropertyCodeGenerator {
     addPreStreamsValueInstanceAddAll(code);
     addPreStreamsBuilderAddAll(code);
     addClear(code);
+    addGetter(code);
   }
 
   private void addValueInstanceAdd(SourceBuilder code) {
@@ -168,6 +171,14 @@ class BuildableListProperty extends PropertyCodeGenerator {
         .addLine("public %s %s() {", metadata.getBuilder(), clearMethod(property))
         .addLine("  %s.clear();", property.getField())
         .addLine("  return (%s) this;", metadata.getBuilder())
+        .addLine("}");
+  }
+
+  private void addGetter(SourceBuilder code) {
+    code.addLine("")
+        .addLine("public %s<%s> %s() {",
+            List.class, element.builderType(), getBuildersMethod(property))
+        .addLine("  return %s.unmodifiableList(%s);", Collections.class, property.getField())
         .addLine("}");
   }
 
