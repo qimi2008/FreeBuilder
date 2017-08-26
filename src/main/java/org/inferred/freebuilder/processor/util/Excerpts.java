@@ -9,8 +9,6 @@ import org.inferred.freebuilder.processor.util.feature.JavaxPackage;
 
 import java.util.List;
 
-import javax.lang.model.type.TypeMirror;
-
 public class Excerpts {
 
   private static final class AddingExcerpt extends Excerpt {
@@ -66,11 +64,11 @@ public class Excerpts {
   }
 
   private static final class ForEachExcerpt extends Excerpt {
-    private final TypeMirror elementType;
+    private final Object elementType;
     private final String iterable;
     private final String method;
 
-    private ForEachExcerpt(TypeMirror elementType, String iterable, String method) {
+    private ForEachExcerpt(Object elementType, String iterable, String method) {
       this.elementType = elementType;
       this.iterable = iterable;
       this.method = method;
@@ -101,7 +99,7 @@ public class Excerpts {
    *
    * <p>Will be {@code iterable.forEach(this::method);} on Java 8+.
    */
-  public static Excerpt forEach(TypeMirror elementType, String iterable, String method) {
+  public static Excerpt forEach(Object elementType, String iterable, String method) {
     return new ForEachExcerpt(elementType, iterable, method);
   }
 

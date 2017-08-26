@@ -2,6 +2,7 @@ package org.inferred.freebuilder.processor;
 
 import static org.inferred.freebuilder.processor.BuildableType.PartialToBuilderMethod.TO_BUILDER_AND_MERGE;
 import static org.inferred.freebuilder.processor.BuilderFactory.TypeInference.EXPLICIT_TYPES;
+import static org.inferred.freebuilder.processor.BuilderMethods.addAllBuildersOfMethod;
 import static org.inferred.freebuilder.processor.BuilderMethods.addAllMethod;
 import static org.inferred.freebuilder.processor.BuilderMethods.addMethod;
 import static org.inferred.freebuilder.processor.Util.erasesToAnyOf;
@@ -71,6 +72,7 @@ class BuildableListProperty extends PropertyCodeGenerator {
     addValueInstanceAdd(code);
     addBuilderAdd(code);
     addPreStreamsValueInstanceAddAll(code);
+    addPreStreamsBuilderAddAll(code);
   }
 
   private void addValueInstanceAdd(SourceBuilder code) {
@@ -113,6 +115,25 @@ class BuildableListProperty extends PropertyCodeGenerator {
         .addLine("    %1$s.ensureCapacity(%1$s.size() + %2$s);", property.getField(), size)
         .addLine("  }")
         .add(Excerpts.forEach(element.type(), "elements", addMethod(property)))
+        .addLine("  return (%s) this;", metadata.getBuilder());
+    code.add(body)
+        .addLine("}");
+  }
+
+  private void addPreStreamsBuilderAddAll(SourceBuilder code) {
+    code.addLine("")
+        .addLine("public %s %s(%s<? extends %s> elementBuilders) {",
+            metadata.getBuilder(),
+            addAllBuildersOfMethod(property),
+            Iterable.class,
+            element.builderType());
+    Block body = methodBody(code, "elementBuilders");
+    body.addLine("  if (elementBuilders instanceof %s) {", Collection.class);
+    Excerpt size = body.pickUnusedVariableName("elementsSize");
+    body.addLine("    int %s = ((%s<?>) elementBuilders).size();", size, Collection.class)
+        .addLine("    %1$s.ensureCapacity(%1$s.size() + %2$s);", property.getField(), size)
+        .addLine("  }")
+        .add(Excerpts.forEach(element.builderType(), "elementBuilders", addMethod(property)))
         .addLine("  return (%s) this;", metadata.getBuilder());
     code.add(body)
         .addLine("}");
