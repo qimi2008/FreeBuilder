@@ -2,6 +2,7 @@ package org.inferred.freebuilder.processor;
 
 import static org.inferred.freebuilder.processor.BuildableType.PartialToBuilderMethod.TO_BUILDER_AND_MERGE;
 import static org.inferred.freebuilder.processor.BuilderFactory.TypeInference.EXPLICIT_TYPES;
+import static org.inferred.freebuilder.processor.BuilderMethods.addAllMethod;
 import static org.inferred.freebuilder.processor.BuilderMethods.addMethod;
 import static org.inferred.freebuilder.processor.Util.erasesToAnyOf;
 import static org.inferred.freebuilder.processor.Util.upperBound;
@@ -15,6 +16,7 @@ import com.google.common.collect.ImmutableList;
 import org.inferred.freebuilder.processor.Metadata.Property;
 import org.inferred.freebuilder.processor.util.Block;
 import org.inferred.freebuilder.processor.util.Excerpt;
+import org.inferred.freebuilder.processor.util.Excerpts;
 import org.inferred.freebuilder.processor.util.SourceBuilder;
 
 import java.util.ArrayList;
@@ -68,6 +70,7 @@ class BuildableListProperty extends PropertyCodeGenerator {
   public void addBuilderFieldAccessors(SourceBuilder code) {
     addValueInstanceAdd(code);
     addBuilderAdd(code);
+    addPreStreamsValueInstanceAddAll(code);
   }
 
   private void addValueInstanceAdd(SourceBuilder code) {
@@ -96,6 +99,22 @@ class BuildableListProperty extends PropertyCodeGenerator {
               property.getField(),
               element.builderFactory().newBuilder(element.builderType(), EXPLICIT_TYPES))
           .addLine("  return (%s) this;", metadata.getBuilder()))
+        .addLine("}");
+  }
+
+  private void addPreStreamsValueInstanceAddAll(SourceBuilder code) {
+    code.addLine("")
+        .addLine("public %s %s(%s<? extends %s> elements) {",
+            metadata.getBuilder(), addAllMethod(property), Iterable.class, element.type());
+    Block body = methodBody(code, "elements");
+    body.addLine("  if (elements instanceof %s) {", Collection.class);
+    Excerpt size = body.pickUnusedVariableName("elementsSize");
+    body.addLine("    int %s = ((%s<?>) elements).size();", size, Collection.class)
+        .addLine("    %1$s.ensureCapacity(%1$s.size() + %2$s);", property.getField(), size)
+        .addLine("  }")
+        .add(Excerpts.forEach(element.type(), "elements", addMethod(property)))
+        .addLine("  return (%s) this;", metadata.getBuilder());
+    code.add(body)
         .addLine("}");
   }
 
