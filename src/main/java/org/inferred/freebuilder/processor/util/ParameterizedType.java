@@ -89,6 +89,17 @@ public class ParameterizedType extends Excerpt {
   }
 
   /**
+   * Returns a new {@link ParameterizedType} of the same length as this type, filled with
+   * parameters taken from {@code otherParameterizedType}.
+   */
+  public ParameterizedType withParametersFrom(ParameterizedType otherParameterizedType) {
+    checkArgument(typeParameters.size() == otherParameterizedType.typeParameters.size(),
+        "Need %s parameters for %s but got %s",
+        typeParameters.size(), this, otherParameterizedType.typeParameters.size());
+    return new ParameterizedType(qualifiedName, otherParameterizedType.typeParameters);
+  }
+
+  /**
    * Returns a new {@link ParameterizedType} of the same length as this type, filled with wildcards
    * ("?").
    */

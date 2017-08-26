@@ -146,9 +146,19 @@ abstract class BuildableType {
       partialToBuilderMethod = PartialToBuilderMethod.MERGE_DIRECTLY;
     }
 
+    ParameterizedType builderType;
+    try {
+      builderType = ParameterizedType
+          .from(builder)
+          .withParametersFrom(ParameterizedType.from(type));
+    } catch (IllegalArgumentException e) {
+      // Parameter lists are the wrong length
+      return Optional.absent();
+    }
+
     return Optional.of(new Builder()
         .type(candidateType)
-        .builderType(ParameterizedType.from(builder))
+        .builderType(builderType)
         .mergeBuilder(mergeFromBuilderMethod)
         .partialToBuilder(partialToBuilderMethod)
         .builderFactory(builderFactory)

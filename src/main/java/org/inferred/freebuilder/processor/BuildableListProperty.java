@@ -12,7 +12,9 @@ import static org.inferred.freebuilder.processor.Util.erasesToAnyOf;
 import static org.inferred.freebuilder.processor.Util.upperBound;
 import static org.inferred.freebuilder.processor.util.Block.methodBody;
 import static org.inferred.freebuilder.processor.util.ModelUtils.maybeDeclared;
+import static org.inferred.freebuilder.processor.util.ModelUtils.needsSafeVarargs;
 import static org.inferred.freebuilder.processor.util.feature.FunctionPackage.FUNCTION_PACKAGE;
+import static org.inferred.freebuilder.processor.util.feature.SourceLevel.SOURCE_LEVEL;
 import static org.inferred.freebuilder.processor.util.feature.SourceLevel.diamondOperator;
 
 import com.google.common.base.Optional;
@@ -23,6 +25,7 @@ import org.inferred.freebuilder.processor.util.Block;
 import org.inferred.freebuilder.processor.util.Excerpt;
 import org.inferred.freebuilder.processor.util.Excerpts;
 import org.inferred.freebuilder.processor.util.ParameterizedType;
+import org.inferred.freebuilder.processor.util.QualifiedName;
 import org.inferred.freebuilder.processor.util.SourceBuilder;
 
 import java.util.ArrayList;
@@ -51,17 +54,25 @@ class BuildableListProperty extends PropertyCodeGenerator {
       if (element == null) {
         return Optional.absent();
       }
+      boolean needsSafeVarargs = needsSafeVarargs(rawElementType);
       return Optional.of(new BuildableListProperty(
           config.getMetadata(),
           config.getProperty(),
+          needsSafeVarargs,
           element));
     }
   }
 
+  private final boolean needsSafeVarargs;
   private final BuildableType element;
 
-  private BuildableListProperty(Metadata metadata, Property property, BuildableType element) {
+  private BuildableListProperty(
+      Metadata metadata,
+      Property property,
+      boolean needsSafeVarargs,
+      BuildableType element) {
     super(metadata, property);
+    this.needsSafeVarargs = needsSafeVarargs;
     this.element = element;
   }
 
@@ -117,22 +128,34 @@ class BuildableListProperty extends PropertyCodeGenerator {
   }
 
   private void addValueInstanceVarargsAdd(SourceBuilder code) {
-    // TODO SafeVarargs
-    code.addLine("")
-        .addLine("public %s %s(%s... elements) {",
+    code.addLine("");
+    addSafeVarargsForPublicMethod(code);
+    code.add("%s %s(%s... elements) {%n",
             metadata.getBuilder(), addMethod(property), element.type())
         .addLine("  return %s(%s.asList(elements));", addAllMethod(property), Arrays.class)
         .addLine("}");
   }
 
   private void addBuilderVarargsAdd(SourceBuilder code) {
-    // TODO SafeVarargs
-    code.addLine("")
-        .addLine("public %s %s(%s... elements) {",
+    code.addLine("");
+    addSafeVarargsForPublicMethod(code);
+    code.add("%s %s(%s... elements) {%n",
             metadata.getBuilder(), addMethod(property), element.builderType())
         .addLine("  return %s(%s.asList(elements));",
             addAllBuildersOfMethod(property), Arrays.class)
         .addLine("}");
+  }
+
+  private void addSafeVarargsForPublicMethod(SourceBuilder code) {
+    QualifiedName safeVarargs = code.feature(SOURCE_LEVEL).safeVarargs().orNull();
+    if (safeVarargs != null && needsSafeVarargs) {
+      code.addLine("@%s", safeVarargs)
+          .addLine("@%s({\"varargs\"})", SuppressWarnings.class);
+    }
+    code.add("public ");
+    if (safeVarargs != null && needsSafeVarargs) {
+      code.add("final ");
+    }
   }
 
   private void addPreStreamsValueInstanceAddAll(SourceBuilder code) {

@@ -1,10 +1,14 @@
 package org.inferred.freebuilder.processor;
 
+import static org.inferred.freebuilder.processor.util.feature.SourceLevel.SOURCE_LEVEL;
+import static org.junit.Assume.assumeTrue;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 import org.inferred.freebuilder.FreeBuilder;
 import org.inferred.freebuilder.processor.util.feature.FeatureSet;
+import org.inferred.freebuilder.processor.util.feature.SourceLevel;
 import org.inferred.freebuilder.processor.util.testing.BehaviorTester;
 import org.inferred.freebuilder.processor.util.testing.ParameterizedBehaviorTestFactory;
 import org.inferred.freebuilder.processor.util.testing.ParameterizedBehaviorTestFactory.Shared;
@@ -492,6 +496,166 @@ public class BuildableListPropertyTest {
             .build())
         .runTest();
 
+  }
+
+  @Test
+  public void varargsAddValueInstances_genericFieldCompilesWithoutHeapPollutionWarnings() {
+    assumeTrue("Java 7+", features.get(SOURCE_LEVEL).compareTo(SourceLevel.JAVA_7) >= 0);
+    behaviorTester
+        .with(new Processor(features))
+        .with(new SourceBuilder()
+            .addLine("package com.example;")
+            .addLine("@%s", FreeBuilder.class)
+            .addLine("public interface Receipt {")
+            .addLine("  @%s", FreeBuilder.class)
+            .addLine("  interface Item<T> {")
+            .addLine("    String name();")
+            .addLine("    T price();")
+            .addLine("")
+            .addLine("    Builder<T> toBuilder();")
+            .addLine("    class Builder<T> extends Receipt_Item_Builder<T> {}")
+            .addLine("  }")
+            .addLine("")
+            .addLine("  %s<Item<Integer>> %s;", List.class, convention.getter("items"))
+            .addLine("")
+            .addLine("  Builder toBuilder();")
+            .addLine("  class Builder extends Receipt_Builder {}")
+            .addLine("}")
+            .build())
+        .with(testBuilder()
+            .addLine("Item<Integer> candy =")
+            .addLine("    new Item.Builder<Integer>().name(\"candy\").price(15).build();")
+            .addLine("Item<Integer> apple =")
+            .addLine("    new Item.Builder<Integer>().name(\"apple\").price(50).build();")
+            .addLine("Receipt value = new Receipt.Builder()")
+            .addLine("    .addItems(candy, apple)")
+            .addLine("    .build();")
+            .addLine("assertThat(value.%s).containsExactly(candy, apple).inOrder();",
+                convention.getter("items"))
+            .build())
+        .compiles()
+        .withNoWarnings()
+        .allTestsPass();
+  }
+
+  @Test
+  public void varargAddValueInstances_genericTypeCompilesWithoutHeapPollutionWarnings() {
+    assumeTrue("Java 7+", features.get(SOURCE_LEVEL).compareTo(SourceLevel.JAVA_7) >= 0);
+    behaviorTester
+        .with(new Processor(features))
+        .with(new SourceBuilder()
+            .addLine("package com.example;")
+            .addLine("@%s", FreeBuilder.class)
+            .addLine("public interface Receipt<T> {")
+            .addLine("  @%s", FreeBuilder.class)
+            .addLine("  interface Item<T> {")
+            .addLine("    String name();")
+            .addLine("    T price();")
+            .addLine("")
+            .addLine("    Builder<T> toBuilder();")
+            .addLine("    class Builder<T> extends Receipt_Item_Builder<T> {}")
+            .addLine("  }")
+            .addLine("")
+            .addLine("  %s<Item<T>> %s;", List.class, convention.getter("items"))
+            .addLine("")
+            .addLine("  Builder toBuilder();")
+            .addLine("  class Builder<T> extends Receipt_Builder<T> {}")
+            .addLine("}")
+            .build())
+        .with(testBuilder()
+            .addLine("Item<Integer> candy =")
+            .addLine("    new Item.Builder<Integer>().name(\"candy\").price(15).build();")
+            .addLine("Item<Integer> apple =")
+            .addLine("    new Item.Builder<Integer>().name(\"apple\").price(50).build();")
+            .addLine("Receipt<Integer> value = new Receipt.Builder<Integer>()")
+            .addLine("    .addItems(candy, apple)")
+            .addLine("    .build();")
+            .addLine("assertThat(value.%s).containsExactly(candy, apple).inOrder();",
+                convention.getter("items"))
+            .build())
+        .compiles()
+        .withNoWarnings()
+        .allTestsPass();
+  }
+
+  @Test
+  public void varargsAddBuilders_genericFieldCompilesWithoutHeapPollutionWarnings() {
+    assumeTrue("Java 7+", features.get(SOURCE_LEVEL).compareTo(SourceLevel.JAVA_7) >= 0);
+    behaviorTester
+        .with(new Processor(features))
+        .with(new SourceBuilder()
+            .addLine("package com.example;")
+            .addLine("@%s", FreeBuilder.class)
+            .addLine("public interface Receipt {")
+            .addLine("  @%s", FreeBuilder.class)
+            .addLine("  interface Item<T> {")
+            .addLine("    String name();")
+            .addLine("    T price();")
+            .addLine("")
+            .addLine("    Builder<T> toBuilder();")
+            .addLine("    class Builder<T> extends Receipt_Item_Builder<T> {}")
+            .addLine("  }")
+            .addLine("")
+            .addLine("  %s<Item<Integer>> %s;", List.class, convention.getter("items"))
+            .addLine("")
+            .addLine("  Builder toBuilder();")
+            .addLine("  class Builder extends Receipt_Builder {}")
+            .addLine("}")
+            .build())
+        .with(testBuilder()
+            .addLine("Item.Builder<Integer> candy =")
+            .addLine("    new Item.Builder<Integer>().name(\"candy\").price(15);")
+            .addLine("Item.Builder<Integer> apple =")
+            .addLine("    new Item.Builder<Integer>().name(\"apple\").price(50);")
+            .addLine("Receipt value = new Receipt.Builder()")
+            .addLine("    .addItems(candy.build(), apple.build())")
+            .addLine("    .build();")
+            .addLine("assertThat(value.%s)", convention.getter("items"))
+            .addLine("    .containsExactly(candy.build(), apple.build()).inOrder();")
+            .build())
+        .compiles()
+        .withNoWarnings()
+        .allTestsPass();
+  }
+
+  @Test
+  public void varargAddBuilders_genericTypeCompilesWithoutHeapPollutionWarnings() {
+    assumeTrue("Java 7+", features.get(SOURCE_LEVEL).compareTo(SourceLevel.JAVA_7) >= 0);
+    behaviorTester
+        .with(new Processor(features))
+        .with(new SourceBuilder()
+            .addLine("package com.example;")
+            .addLine("@%s", FreeBuilder.class)
+            .addLine("public interface Receipt<T> {")
+            .addLine("  @%s", FreeBuilder.class)
+            .addLine("  interface Item<T> {")
+            .addLine("    String name();")
+            .addLine("    T price();")
+            .addLine("")
+            .addLine("    Builder<T> toBuilder();")
+            .addLine("    class Builder<T> extends Receipt_Item_Builder<T> {}")
+            .addLine("  }")
+            .addLine("")
+            .addLine("  %s<Item<T>> %s;", List.class, convention.getter("items"))
+            .addLine("")
+            .addLine("  Builder toBuilder();")
+            .addLine("  class Builder<T> extends Receipt_Builder<T> {}")
+            .addLine("}")
+            .build())
+        .with(testBuilder()
+            .addLine("Item.Builder<Integer> candy =")
+            .addLine("    new Item.Builder<Integer>().name(\"candy\").price(15);")
+            .addLine("Item.Builder<Integer> apple =")
+            .addLine("    new Item.Builder<Integer>().name(\"apple\").price(50);")
+            .addLine("Receipt<Integer> value = new Receipt.Builder<Integer>()")
+            .addLine("    .addItems(candy.build(), apple.build())")
+            .addLine("    .build();")
+            .addLine("assertThat(value.%s)", convention.getter("items"))
+            .addLine("    .containsExactly(candy.build(), apple.build()).inOrder();")
+            .build())
+        .compiles()
+        .withNoWarnings()
+        .allTestsPass();
   }
 
   private static TestBuilder testBuilder() {
