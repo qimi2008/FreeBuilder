@@ -196,6 +196,6 @@ class BuildableListProperty extends PropertyCodeGenerator {
 
   @Override
   public void addClearField(Block code) {
-    // TODO
+    code.addLine("%s();", clearMethod(property));
   }
 }
