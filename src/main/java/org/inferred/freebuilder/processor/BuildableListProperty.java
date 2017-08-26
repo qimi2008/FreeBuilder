@@ -74,6 +74,7 @@ class BuildableListProperty extends PropertyCodeGenerator {
     addValueInstanceAdd(code);
     addBuilderAdd(code);
     addValueInstanceVarargsAdd(code);
+    addBuilderVarargsAdd(code);
     addPreStreamsValueInstanceAddAll(code);
     addPreStreamsBuilderAddAll(code);
     addClear(code);
@@ -114,6 +115,16 @@ class BuildableListProperty extends PropertyCodeGenerator {
         .addLine("public %s %s(%s... elements) {",
             metadata.getBuilder(), addMethod(property), element.type())
         .addLine("  return %s(%s.asList(elements));", addAllMethod(property), Arrays.class)
+        .addLine("}");
+  }
+
+  private void addBuilderVarargsAdd(SourceBuilder code) {
+    // TODO SafeVarargs
+    code.addLine("")
+        .addLine("public %s %s(%s... elements) {",
+            metadata.getBuilder(), addMethod(property), element.builderType())
+        .addLine("  return %s(%s.asList(elements));",
+            addAllBuildersOfMethod(property), Arrays.class)
         .addLine("}");
   }
 
