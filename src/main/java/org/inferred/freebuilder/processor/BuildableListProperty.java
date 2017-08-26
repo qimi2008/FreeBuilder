@@ -201,6 +201,8 @@ class BuildableListProperty extends PropertyCodeGenerator {
       addSpliteratorBuilderAddAll(code);
       addIterableValueInstanceAddAll(code);
       addIterableBuilderAddAll(code);
+      addStreamValueInstanceAddAll(code);
+      addStreamBuilderAddAll(code);
     } else {
       addPreStreamsValueInstanceAddAll(code);
       addPreStreamsBuilderAddAll(code);
@@ -298,6 +300,27 @@ class BuildableListProperty extends PropertyCodeGenerator {
             metadata.getBuilder(),
             addAllBuildersOfMethod(property),
             Iterable.class,
+            element.builderType())
+        .addLine("  return %s(elementBuilders.spliterator());", addAllBuildersOfMethod(property))
+        .addLine("}");
+  }
+
+  private void addStreamValueInstanceAddAll(SourceBuilder code) {
+    QualifiedName baseStream = code.feature(SOURCE_LEVEL).baseStream().get();
+    code.addLine("")
+        .addLine("public %s %s(%s<? extends %s, ?> elements) {",
+            metadata.getBuilder(), addAllMethod(property), baseStream, element.type())
+        .addLine("  return %s(elements.spliterator());", addAllMethod(property))
+        .addLine("}");
+  }
+
+  private void addStreamBuilderAddAll(SourceBuilder code) {
+    QualifiedName baseStream = code.feature(SOURCE_LEVEL).baseStream().get();
+    code.addLine("")
+        .addLine("public %s %s(%s<? extends %s, ?> elementBuilders) {",
+            metadata.getBuilder(),
+            addAllBuildersOfMethod(property),
+            baseStream,
             element.builderType())
         .addLine("  return %s(elementBuilders.spliterator());", addAllBuildersOfMethod(property))
         .addLine("}");
