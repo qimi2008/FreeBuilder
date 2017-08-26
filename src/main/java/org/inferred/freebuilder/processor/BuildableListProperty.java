@@ -125,8 +125,7 @@ class BuildableListProperty extends PropertyCodeGenerator {
     addBuilderAdd(code);
     addValueInstanceVarargsAdd(code);
     addBuilderVarargsAdd(code);
-    addPreStreamsValueInstanceAddAll(code);
-    addPreStreamsBuilderAddAll(code);
+    addAddAllMethods(code);
     addMutate(code);
     addClear(code);
     addGetter(code);
@@ -196,6 +195,15 @@ class BuildableListProperty extends PropertyCodeGenerator {
     }
   }
 
+  private void addAddAllMethods(SourceBuilder code) {
+    if (code.feature(SOURCE_LEVEL).stream().isPresent()) {
+      addSpliteratorValueInstanceAddAll(code);
+      addSpliteratorBuilderAddAll(code);
+    }
+    addPreStreamsValueInstanceAddAll(code);
+    addPreStreamsBuilderAddAll(code);
+  }
+
   private void addPreStreamsValueInstanceAddAll(SourceBuilder code) {
     code.addLine("")
         .addLine("public %s %s(%s<? extends %s> elements) {",
@@ -226,6 +234,48 @@ class BuildableListProperty extends PropertyCodeGenerator {
         .addLine("    %1$s.ensureCapacity(%1$s.size() + %2$s);", property.getField(), size)
         .addLine("  }")
         .add(Excerpts.forEach(element.builderType(), "elementBuilders", addMethod(property)))
+        .addLine("  return (%s) this;", metadata.getBuilder());
+    code.add(body)
+        .addLine("}");
+  }
+
+  private void addSpliteratorValueInstanceAddAll(SourceBuilder code) {
+    QualifiedName spliterator = code.feature(SOURCE_LEVEL).spliterator().get();
+    code.addLine("")
+        .addLine("public %s %s(%s<? extends %s> elements) {",
+            metadata.getBuilder(), addAllMethod(property), spliterator, element.type());
+    Block body = methodBody(code, "elements");
+    body.addLine("  if ((elements.characteristics() & %s.SIZED) != 0) {", spliterator);
+    Excerpt newSize = body.pickUnusedVariableName("newSize");
+    body.addLine("    long %s = elements.estimateSize() + %s.size();", newSize, property.getField())
+        .addLine("    if (%s <= Integer.MAX_VALUE) {", newSize)
+        .addLine("      %s.ensureCapacity((int) %s);", property.getField(), newSize)
+        .addLine("    }")
+        .addLine("  }")
+        .addLine("  elements.forEachRemaining(this::%s);", addMethod(property))
+        .addLine("  return (%s) this;", metadata.getBuilder());
+    code.add(body)
+        .addLine("}");
+  }
+
+  private void addSpliteratorBuilderAddAll(SourceBuilder code) {
+    QualifiedName spliterator = code.feature(SOURCE_LEVEL).spliterator().get();
+    code.addLine("")
+        .addLine("public %s %s(%s<? extends %s> elementBuilders) {",
+            metadata.getBuilder(),
+            addAllBuildersOfMethod(property),
+            spliterator,
+            element.builderType());
+    Block body = methodBody(code, "elementBuilders");
+    body.addLine("  if ((elementBuilders.characteristics() & %s.SIZED) != 0) {", spliterator);
+    Excerpt newSize = body.pickUnusedVariableName("newSize");
+    body.addLine("    long %s = elementBuilders.estimateSize() + %s.size();",
+            newSize, property.getField())
+        .addLine("    if (%s <= Integer.MAX_VALUE) {", newSize)
+        .addLine("      %s.ensureCapacity((int) %s);", property.getField(), newSize)
+        .addLine("    }")
+        .addLine("  }")
+        .addLine("  elementBuilders.forEachRemaining(this::%s);", addMethod(property))
         .addLine("  return (%s) this;", metadata.getBuilder());
     code.add(body)
         .addLine("}");
