@@ -13,6 +13,7 @@ import static org.inferred.freebuilder.processor.Util.upperBound;
 import static org.inferred.freebuilder.processor.util.Block.methodBody;
 import static org.inferred.freebuilder.processor.util.ModelUtils.maybeDeclared;
 import static org.inferred.freebuilder.processor.util.ModelUtils.needsSafeVarargs;
+import static org.inferred.freebuilder.processor.util.ModelUtils.overrides;
 import static org.inferred.freebuilder.processor.util.feature.FunctionPackage.FUNCTION_PACKAGE;
 import static org.inferred.freebuilder.processor.util.feature.SourceLevel.SOURCE_LEVEL;
 import static org.inferred.freebuilder.processor.util.feature.SourceLevel.diamondOperator;
@@ -55,24 +56,57 @@ class BuildableListProperty extends PropertyCodeGenerator {
         return Optional.absent();
       }
       boolean needsSafeVarargs = needsSafeVarargs(rawElementType);
+      boolean overridesValueInstanceVarargsAddMethod =
+          hasValueInstanceVarargsAddMethodOverride(config, rawElementType);
+      boolean overridesBuilderVarargsAddMethod =
+          hasBuilderVarargsAddMethodOverride(config, element.builderType());
       return Optional.of(new BuildableListProperty(
           config.getMetadata(),
           config.getProperty(),
           needsSafeVarargs,
+          overridesValueInstanceVarargsAddMethod,
+          overridesBuilderVarargsAddMethod,
           element));
+    }
+
+    private static boolean hasValueInstanceVarargsAddMethodOverride(
+        Config config, TypeMirror elementType) {
+      return overrides(
+          config.getBuilder(),
+          config.getTypes(),
+          addMethod(config.getProperty()),
+          config.getTypes().getArrayType(elementType));
+    }
+
+    private static boolean hasBuilderVarargsAddMethodOverride(
+        Config config, ParameterizedType builderType) {
+      TypeMirror rawBuilderType = config.getElements()
+          .getTypeElement(builderType.getQualifiedName().toString())
+          .asType();
+      return overrides(
+          config.getBuilder(),
+          config.getTypes(),
+          addMethod(config.getProperty()),
+          config.getTypes().getArrayType(rawBuilderType));
     }
   }
 
   private final boolean needsSafeVarargs;
+  private final boolean overridesValueInstanceVarargsAddMethod;
+  private final boolean overridesBuilderVarargsAddMethod;
   private final BuildableType element;
 
   private BuildableListProperty(
       Metadata metadata,
       Property property,
       boolean needsSafeVarargs,
+      boolean overridesValueInstanceVarargsAddMethod,
+      boolean overridesBuilderVarargsAddMethod,
       BuildableType element) {
     super(metadata, property);
     this.needsSafeVarargs = needsSafeVarargs;
+    this.overridesValueInstanceVarargsAddMethod = overridesValueInstanceVarargsAddMethod;
+    this.overridesBuilderVarargsAddMethod = overridesBuilderVarargsAddMethod;
     this.element = element;
   }
 
@@ -129,7 +163,7 @@ class BuildableListProperty extends PropertyCodeGenerator {
 
   private void addValueInstanceVarargsAdd(SourceBuilder code) {
     code.addLine("");
-    addSafeVarargsForPublicMethod(code);
+    addSafeVarargsForPublicMethod(code, overridesValueInstanceVarargsAddMethod);
     code.add("%s %s(%s... elements) {%n",
             metadata.getBuilder(), addMethod(property), element.type())
         .addLine("  return %s(%s.asList(elements));", addAllMethod(property), Arrays.class)
@@ -138,7 +172,7 @@ class BuildableListProperty extends PropertyCodeGenerator {
 
   private void addBuilderVarargsAdd(SourceBuilder code) {
     code.addLine("");
-    addSafeVarargsForPublicMethod(code);
+    addSafeVarargsForPublicMethod(code, overridesBuilderVarargsAddMethod);
     code.add("%s %s(%s... elements) {%n",
             metadata.getBuilder(), addMethod(property), element.builderType())
         .addLine("  return %s(%s.asList(elements));",
@@ -146,14 +180,18 @@ class BuildableListProperty extends PropertyCodeGenerator {
         .addLine("}");
   }
 
-  private void addSafeVarargsForPublicMethod(SourceBuilder code) {
+  private void addSafeVarargsForPublicMethod(SourceBuilder code, boolean isOverridden) {
     QualifiedName safeVarargs = code.feature(SOURCE_LEVEL).safeVarargs().orNull();
     if (safeVarargs != null && needsSafeVarargs) {
-      code.addLine("@%s", safeVarargs)
-          .addLine("@%s({\"varargs\"})", SuppressWarnings.class);
+      if (!isOverridden) {
+        code.addLine("@%s", safeVarargs)
+            .addLine("@%s({\"varargs\"})", SuppressWarnings.class);
+      } else {
+        code.addLine("@%s({\"unchecked\", \"varargs\"})", SuppressWarnings.class);
+      }
     }
     code.add("public ");
-    if (safeVarargs != null && needsSafeVarargs) {
+    if (safeVarargs != null && needsSafeVarargs && !isOverridden) {
       code.add("final ");
     }
   }
