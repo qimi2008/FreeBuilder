@@ -256,6 +256,24 @@ public class BuildableListPropertyTest {
         .runTest();
   }
 
+  @Test
+  public void buildPartial_cascades() {
+    behaviorTester
+        .with(new Processor(features))
+        .with(buildableListType)
+        .with(testBuilder()
+            .addLine("Item.Builder candy = new Item.Builder().name(\"candy\");")
+            .addLine("Item.Builder apple = new Item.Builder().name(\"apple\");")
+            .addLine("Receipt value = new Receipt.Builder()")
+            .addLine("    .addItems(candy)")
+            .addLine("    .addItems(apple)")
+            .addLine("    .buildPartial();")
+            .addLine("assertThat(value.%s)", convention.getter("items"))
+            .addLine("    .containsExactly(candy.buildPartial(), apple.buildPartial()).inOrder();")
+            .build())
+        .runTest();
+  }
+
   private static TestBuilder testBuilder() {
     return new TestBuilder()
         .addImport("com.example.Receipt")
