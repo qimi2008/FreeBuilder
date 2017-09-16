@@ -879,7 +879,7 @@ public class ListPropertyTest {
             .addLine("@%s", FreeBuilder.class)
             .addLine("public abstract class DataType {")
             .addLine("  public abstract %s<%s> %s;",
-                List.class, elements.type(), convention.getter("elements"))
+                List.class, elements.type(), convention.get("elements"))
             .addLine("")
             .addLine("  public static class Builder extends DataType_Builder {}")
             .addLine("}")
@@ -889,7 +889,7 @@ public class ListPropertyTest {
             .addLine("    .addElements(%s)", elements.examples(0, 1))
             .addLine("    .build();")
             .addLine("assertThat(value.%s).containsExactly(%s).inOrder();",
-                convention.getter("elements"), elements.examples(0, 1))
+                convention.get("elements"), elements.examples(0, 1))
             .build())
         .runTest();
   }

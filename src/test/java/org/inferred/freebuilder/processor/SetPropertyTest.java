@@ -981,7 +981,7 @@ public class SetPropertyTest {
             .addLine("@%s", FreeBuilder.class)
             .addLine("public abstract class DataType {")
             .addLine("  public abstract %s<%s> %s;",
-                set.type(), elements.type(), convention.getter("elements"))
+                set.type(), elements.type(), convention.get("elements"))
             .addLine("")
             .addLine("  public static class Builder extends DataType_Builder {}")
             .addLine("}")
@@ -991,7 +991,7 @@ public class SetPropertyTest {
             .addLine("    .addElements(%s)", elements.examples(1, 0))
             .addLine("    .build();")
             .addLine("assertThat(value.%s).containsExactly(%s).inOrder();",
-                convention.getter("elements"), elements.examples(set.inOrder(1, 0)))
+                convention.get("elements"), elements.examples(set.inOrder(1, 0)))
             .build())
         .runTest();
   }

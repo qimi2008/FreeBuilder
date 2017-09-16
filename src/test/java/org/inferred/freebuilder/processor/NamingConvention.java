@@ -18,13 +18,13 @@ package org.inferred.freebuilder.processor;
 public enum NamingConvention {
   PREFIXLESS("prefixless") {
     @Override
-    public String getter(String fieldName) {
+    public String get(String fieldName) {
       return fieldName + "()";
     }
   },
   BEAN("bean") {
     @Override
-    public String getter(String fieldName) {
+    public String get(String fieldName) {
       return "get" + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1) + "()";
     }
   };
@@ -36,10 +36,10 @@ public enum NamingConvention {
   }
 
   public String getter() {
-    return getter("items");
+    return get("items");
   }
 
-  abstract public String getter(String fieldName);
+  abstract public String get(String fieldName);
 
   @Override
   public String toString() {
