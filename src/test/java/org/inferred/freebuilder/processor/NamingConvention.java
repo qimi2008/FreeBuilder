@@ -18,14 +18,14 @@ package org.inferred.freebuilder.processor;
 public enum NamingConvention {
   PREFIXLESS("prefixless") {
     @Override
-    public String get(String fieldName) {
-      return fieldName + "()";
+    String accessor(String prefix, String fieldName) {
+      return fieldName;
     }
   },
   BEAN("bean") {
     @Override
-    public String get(String fieldName) {
-      return "get" + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1) + "()";
+    String accessor(String prefix, String fieldName) {
+      return prefix + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1);
     }
   };
 
@@ -39,7 +39,19 @@ public enum NamingConvention {
     return get("items");
   }
 
-  abstract public String get(String fieldName);
+  public String get(String fieldName) {
+    return accessor("get", fieldName) + "()";
+  }
+
+  public String set(String fieldName) {
+    return accessor("set", fieldName);
+  }
+
+  public String is(String fieldName) {
+    return accessor("is", fieldName) + "()";
+  }
+
+  abstract String accessor(String prefix, String fieldName);
 
   @Override
   public String toString() {
