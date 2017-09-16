@@ -15,7 +15,7 @@ public enum ElementFactory {
       "String",
       "String",
       CharSequence.class,
-      "!element.isEmpty()",
+      "!%s.isEmpty()",
       "!element.toString().isEmpty()",
       "Cannot add empty string",
       "",
@@ -31,7 +31,7 @@ public enum ElementFactory {
       "Integer",
       "int",
       Number.class,
-      "element >= 0",
+      "%s >= 0",
       "element.intValue() >= 0",
       "Items must be non-negative",
       -4,
@@ -94,7 +94,11 @@ public enum ElementFactory {
   }
 
   public String validation() {
-    return validation;
+    return validation("element");
+  }
+
+  public String validation(String variableName) {
+    return String.format(validation, variableName);
   }
 
   public String supertypeValidation() {
