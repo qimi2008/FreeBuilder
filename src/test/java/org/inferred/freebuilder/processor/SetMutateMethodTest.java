@@ -15,9 +15,7 @@
  */
 package org.inferred.freebuilder.processor;
 
-import static org.inferred.freebuilder.processor.util.feature.FunctionPackage.FUNCTION_PACKAGE;
-import static org.junit.Assume.assumeTrue;
-
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
@@ -39,6 +37,7 @@ import org.junit.runners.Parameterized.UseParametersRunnerFactory;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 import javax.tools.JavaFileObject;
 
@@ -47,13 +46,15 @@ import javax.tools.JavaFileObject;
 public class SetMutateMethodTest {
 
   @SuppressWarnings("unchecked")
-  @Parameters(name = "{0}<Integer>, {1}, {2}")
+  @Parameters(name = "{0}<{1}>, checked={2}, {3}, {4}")
   public static Iterable<Object[]> featureSets() {
     List<SetType> sets = Arrays.asList(SetType.values());
+    List<ElementFactory> elements = Arrays.asList(ElementFactory.values());
+    List<Boolean> checked = ImmutableList.of(false, true);
     List<NamingConvention> conventions = Arrays.asList(NamingConvention.values());
     List<FeatureSet> features = FeatureSets.WITH_LAMBDAS;
     return () -> Lists
-        .cartesianProduct(sets, conventions, features)
+        .cartesianProduct(sets, elements, checked, conventions, features)
         .stream()
         .map(List::toArray)
         .iterator();
@@ -63,40 +64,42 @@ public class SetMutateMethodTest {
   @Shared public BehaviorTester behaviorTester;
 
   private final SetType set;
+  private final ElementFactory elements;
+  private final boolean checked;
   private final NamingConvention convention;
   private final FeatureSet features;
 
-  private final JavaFileObject uncheckedSetProperty;
-  private final JavaFileObject checkedSetProperty;
+  private final JavaFileObject setPropertyType;
 
-  public SetMutateMethodTest(SetType set, NamingConvention convention, FeatureSet features) {
+  public SetMutateMethodTest(
+      SetType set,
+      ElementFactory elements,
+      boolean checked,
+      NamingConvention convention,
+      FeatureSet features) {
     this.set = set;
+    this.elements = elements;
+    this.checked = checked;
     this.convention = convention;
     this.features = features;
 
-    uncheckedSetProperty = new SourceBuilder()
+    SourceBuilder setPropertyTypeBuilder = new SourceBuilder()
         .addLine("package com.example;")
         .addLine("@%s", FreeBuilder.class)
         .addLine("public interface DataType {")
-        .addLine("  %s<Integer> %s;", set.type(), convention.getter())
+        .addLine("  %s<%s> %s;", set.type(), elements.type(), convention.getter())
         .addLine("")
-        .addLine("  public static class Builder extends DataType_Builder {}")
-        .addLine("}")
-        .build();
-
-    checkedSetProperty = new SourceBuilder()
-        .addLine("package com.example;")
-        .addLine("@%s", FreeBuilder.class)
-        .addLine("public interface DataType {")
-        .addLine("  %s<Integer> %s;", set.type(), convention.getter())
-        .addLine("")
-        .addLine("  public static class Builder extends DataType_Builder {")
-        .addLine("    @Override public Builder addItems(int element) {")
-        .addLine("      if (element < 0) {")
-        .addLine("        throw new IllegalArgumentException(\"elements must be non-negative\");")
-        .addLine("      }")
-        .addLine("      return super.addItems(element);")
-        .addLine("    }")
+        .addLine("  public static class Builder extends DataType_Builder {");
+    if (checked) {
+      setPropertyTypeBuilder
+          .addLine("    @Override public Builder addItems(%s element) {", elements.unwrappedType())
+          .addLine("      if (!(%s)) {", elements.validation())
+          .addLine("        throw new IllegalArgumentException(\"%s\");", elements.errorMessage())
+          .addLine("      }")
+          .addLine("      return super.addItems(element);")
+          .addLine("    }");
+    }
+    setPropertyType = setPropertyTypeBuilder
         .addLine("  }")
         .addLine("}")
         .build();
@@ -106,14 +109,14 @@ public class SetMutateMethodTest {
   public void mutateAndAddModifiesUnderlyingProperty() {
     behaviorTester
         .with(new Processor(features))
-        .with(uncheckedSetProperty)
+        .with(setPropertyType)
         .with(testBuilder()
             .addLine("DataType value = new DataType.Builder()")
-            .addLine("    .addItems(11)")
-            .addLine("    .mutateItems(items -> items.add(5))")
+            .addLine("    .addItems(%s)", elements.example(1))
+            .addLine("    .mutateItems(items -> items.add(%s))", elements.example(0))
             .addLine("    .build();")
             .addLine("assertThat(value.%s).containsExactly(%s).inOrder();",
-                convention.getter(), set.intsInOrder(11, 5))
+                convention.getter(), elements.examples(set.inOrder(1, 0)))
             .build())
         .runTest();
   }
@@ -122,10 +125,10 @@ public class SetMutateMethodTest {
   public void mutateAndSizeReturnsSize() {
     behaviorTester
         .with(new Processor(features))
-        .with(checkedSetProperty)
+        .with(setPropertyType)
         .with(testBuilder()
             .addLine("new DataType.Builder()")
-            .addLine("    .addItems(5)")
+            .addLine("    .addItems(%s)", elements.example(0))
             .addLine("    .mutateItems(items -> assertThat(items.size()).equals(1));")
             .build())
         .runTest();
@@ -135,11 +138,26 @@ public class SetMutateMethodTest {
   public void mutateAndContainsReturnsTrueForContainedElement() {
     behaviorTester
         .with(new Processor(features))
-        .with(checkedSetProperty)
+        .with(setPropertyType)
         .with(testBuilder()
             .addLine("new DataType.Builder()")
-            .addLine("    .addItems(5)")
-            .addLine("    .mutateItems(items -> assertThat(items.contains(5)).isTrue());")
+            .addLine("    .addItems(%s)", elements.example(0))
+            .addLine("    .mutateItems(items -> assertThat(items.contains(%s)).isTrue());",
+                elements.example(0))
+            .build())
+        .runTest();
+  }
+
+  @Test
+  public void mutateAndContainsReturnsFalseForNonContainedElement() {
+    behaviorTester
+        .with(new Processor(features))
+        .with(setPropertyType)
+        .with(testBuilder()
+            .addLine("new DataType.Builder()")
+            .addLine("    .addItems(%s)", elements.example(0))
+            .addLine("    .mutateItems(items -> assertThat(items.contains(%s)).isFalse());",
+                elements.example(1))
             .build())
         .runTest();
   }
@@ -148,13 +166,13 @@ public class SetMutateMethodTest {
   public void mutateAndIterateFindsContainedElement() {
     behaviorTester
         .with(new Processor(features))
-        .with(checkedSetProperty)
+        .with(setPropertyType)
         .with(testBuilder()
             .addLine("new DataType.Builder()")
-            .addLine("    .addItems(5)")
+            .addLine("    .addItems(%s)", elements.examples(2, 0, 1))
             .addLine("    .mutateItems(items -> {")
-            .addLine("      assertThat(%s.copyOf(items.iterator())).containsExactly(5);",
-                ImmutableSet.class)
+            .addLine("      assertThat(%s.copyOf(items.iterator())).containsExactly(%s).inOrder();",
+                ImmutableSet.class, elements.examples(set.inOrder(2, 0, 1)))
             .addLine("    });")
             .build())
         .runTest();
@@ -164,13 +182,14 @@ public class SetMutateMethodTest {
   public void mutateAndRemoveModifiesUnderlyingProperty() {
     behaviorTester
         .with(new Processor(features))
-        .with(checkedSetProperty)
+        .with(setPropertyType)
         .with(testBuilder()
             .addLine("DataType value = new DataType.Builder()")
-            .addLine("    .addItems(5, 11)")
-            .addLine("    .mutateItems(items -> items.remove(5))")
+            .addLine("    .addItems(%s)", elements.examples(0, 1))
+            .addLine("    .mutateItems(items -> items.remove(%s))", elements.example(0))
             .addLine("    .build();")
-            .addLine("assertThat(value.%s).containsExactly(11);", convention.getter())
+            .addLine("assertThat(value.%s).containsExactly(%s);",
+                convention.getter(), elements.example(1))
             .build())
         .runTest();
   }
@@ -179,20 +198,21 @@ public class SetMutateMethodTest {
   public void mutateAndCallRemoveOnIteratorModifiesUnderlyingProperty() {
     behaviorTester
         .with(new Processor(features))
-        .with(checkedSetProperty)
+        .with(setPropertyType)
         .with(testBuilder()
             .addLine("DataType value = new DataType.Builder()")
-            .addLine("    .addItems(5, 11)")
+            .addLine("    .addItems(%s)", elements.examples(0, 1))
             .addLine("    .mutateItems(items -> {")
-            .addLine("      %s<Integer> it = items.iterator();", Iterator.class)
+            .addLine("      %s<%s> it = items.iterator();", Iterator.class, elements.type())
             .addLine("      while (it.hasNext()) {")
-            .addLine("        if (it.next() == 5) {")
+            .addLine("        if (%s.equals(it.next(), %s)) {", Objects.class, elements.example(0))
             .addLine("          it.remove();")
             .addLine("        }")
             .addLine("      }")
             .addLine("    })")
             .addLine("    .build();")
-            .addLine("assertThat(value.%s).containsExactly(11);", convention.getter())
+            .addLine("assertThat(value.%s).containsExactly(%s);", convention.getter(),
+                elements.example(1))
             .build())
         .runTest();
   }
@@ -201,10 +221,10 @@ public class SetMutateMethodTest {
   public void mutateAndClearModifiesUnderlyingProperty() {
     behaviorTester
         .with(new Processor(features))
-        .with(checkedSetProperty)
+        .with(setPropertyType)
         .with(testBuilder()
             .addLine("DataType value = new DataType.Builder()")
-            .addLine("    .addItems(5, 11)")
+            .addLine("    .addItems(%s)", elements.examples(0, 1))
             .addLine("    .mutateItems(items -> items.clear())")
             .addLine("    .build();")
             .addLine("assertThat(value.%s).isEmpty();", convention.getter())
@@ -214,32 +234,35 @@ public class SetMutateMethodTest {
 
   @Test
   public void mutateAndAddDelegatesToAddMethodForValidation() {
-    thrown.expect(IllegalArgumentException.class);
-    thrown.expectMessage("elements must be non-negative");
+    if (checked) {
+      thrown.expect(IllegalArgumentException.class);
+      thrown.expectMessage(elements.errorMessage());
+    }
     behaviorTester
         .with(new Processor(features))
-        .with(checkedSetProperty)
+        .with(setPropertyType)
         .with(testBuilder()
             .addLine("new DataType.Builder()")
-            .addLine("    .addItems(5)")
-            .addLine("    .mutateItems(items -> items.add(-3));")
+            .addLine("    .addItems(%s)", elements.example(0))
+            .addLine("    .mutateItems(items -> items.add(%s));", elements.invalidExample())
             .build())
         .runTest();
   }
 
   @Test
   public void modifyAndMutateModifiesUnderlyingProperty() {
-    assumeTrue(features.get(FUNCTION_PACKAGE).consumer().isPresent());
     behaviorTester
         .with(new Processor(features))
-        .with(checkedSetProperty)
+        .with(setPropertyType)
         .with(testBuilder()
-            .addLine("DataType value = new DataType.Builder().addItems(1, 2).build();")
+            .addLine("DataType value = new DataType.Builder().addItems(%s).build();",
+                elements.examples(0, 1))
             .addLine("DataType copy = DataType.Builder")
             .addLine("    .from(value)")
-            .addLine("    .mutateItems(items -> items.remove(1))")
+            .addLine("    .mutateItems(items -> items.remove(%s))", elements.example(0))
             .addLine("    .build();")
-            .addLine("assertThat(copy.%s).containsExactly(2);", convention.getter())
+            .addLine("assertThat(copy.%s).containsExactly(%s);",
+                convention.getter(), elements.example(1))
             .build())
         .runTest();
   }
