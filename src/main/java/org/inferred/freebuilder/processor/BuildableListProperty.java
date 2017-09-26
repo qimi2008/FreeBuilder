@@ -14,6 +14,7 @@ import static org.inferred.freebuilder.processor.util.ModelUtils.maybeDeclared;
 import static org.inferred.freebuilder.processor.util.ModelUtils.needsSafeVarargs;
 import static org.inferred.freebuilder.processor.util.ModelUtils.overrides;
 import static org.inferred.freebuilder.processor.util.feature.FunctionPackage.FUNCTION_PACKAGE;
+import static org.inferred.freebuilder.processor.util.feature.GuavaLibrary.GUAVA;
 import static org.inferred.freebuilder.processor.util.feature.SourceLevel.SOURCE_LEVEL;
 
 import com.google.common.base.Optional;
@@ -203,13 +204,17 @@ class BuildableListProperty extends PropertyCodeGenerator {
         .addLine("public %s %s(%s<? extends %s> elements) {",
             metadata.getBuilder(), addAllMethod(property), Iterable.class, element.type());
     Block body = methodBody(code, "elements");
-    body.addLine("  if (elements instanceof %s) {", Collection.class);
-    Excerpt size = body.pickUnusedVariableName("elementsSize");
-    body.addLine("    int %s = ((%s<?>) elements).size();", size, Collection.class)
-        .addLine("    %1$s.ensureCapacity(%1$s.size() + %2$s);", property.getField(), size)
-        .addLine("  }")
-        .add(Excerpts.forEach(element.type(), "elements", addMethod(property)))
-        .addLine("  return (%s) this;", metadata.getBuilder());
+    if (code.feature(GUAVA).isAvailable()) {
+      body.addLine("  %s.addAllValues(elements);", property.getField());
+    } else {
+      body.addLine("  if (elements instanceof %s) {", Collection.class);
+      Excerpt size = body.pickUnusedVariableName("elementsSize");
+      body.addLine("    int %s = ((%s<?>) elements).size();", size, Collection.class)
+          .addLine("    %1$s.ensureCapacity(%1$s.size() + %2$s);", property.getField(), size)
+          .addLine("  }")
+          .add(Excerpts.forEach(element.type(), "elements", addMethod(property)));
+    }
+    body.addLine("  return (%s) this;", metadata.getBuilder());
     code.add(body)
         .addLine("}");
   }
@@ -278,8 +283,15 @@ class BuildableListProperty extends PropertyCodeGenerator {
   private void addIterableValueInstanceAddAll(SourceBuilder code) {
     code.addLine("")
         .addLine("public %s %s(%s<? extends %s> elements) {",
-            metadata.getBuilder(), addAllMethod(property), Iterable.class, element.type())
-        .addLine("  return %s(elements.spliterator());", addAllMethod(property))
+            metadata.getBuilder(), addAllMethod(property), Iterable.class, element.type());
+    Block body = methodBody(code, "elements");
+    if (code.feature(GUAVA).isAvailable()) {
+      body.addLine("  %s.addAllValues(elements);", property.getField())
+          .addLine("  return (%s) this;", metadata.getBuilder());
+    } else {
+      body.addLine("  return %s(elements.spliterator());", addAllMethod(property));
+    }
+    code.add(body)
         .addLine("}");
   }
 

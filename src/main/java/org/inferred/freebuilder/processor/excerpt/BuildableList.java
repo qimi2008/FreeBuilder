@@ -17,9 +17,13 @@ package org.inferred.freebuilder.processor.excerpt;
 
 import static org.inferred.freebuilder.processor.BuildableType.PartialToBuilderMethod.TO_BUILDER_AND_MERGE;
 import static org.inferred.freebuilder.processor.BuilderFactory.TypeInference.EXPLICIT_TYPES;
+import static org.inferred.freebuilder.processor.util.feature.GuavaLibrary.GUAVA;
+
+import com.google.common.collect.ImmutableList;
 
 import org.inferred.freebuilder.processor.BuildableType;
 import org.inferred.freebuilder.processor.util.Excerpt;
+import org.inferred.freebuilder.processor.util.Excerpts;
 import org.inferred.freebuilder.processor.util.LazyName;
 import org.inferred.freebuilder.processor.util.PreconditionExcerpts;
 import org.inferred.freebuilder.processor.util.SourceBuilder;
@@ -27,6 +31,7 @@ import org.inferred.freebuilder.processor.util.SourceBuilder;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.RandomAccess;
@@ -59,8 +64,12 @@ public class BuildableList extends Excerpt {
             element.builderType(),
             RandomAccess.class)
         .addLine("")
-        .addLine("  // A list of value or builder instances")
-        .addLine("  private final %1$s elements = new %1$s();", ArrayList.class);
+        .addLine("  // A list of value or builder instances");
+    if (code.feature(GUAVA).isAvailable()) {
+      code.addLine("  private %s elements = %s.of();", List.class, ImmutableList.class);
+    } else {
+      code.addLine("  private final %1$s elements = new %1$s();", ArrayList.class);
+    }
     addSize(code);
     addGet(code);
     addSet(code);
@@ -68,6 +77,7 @@ public class BuildableList extends Excerpt {
     addRemove(code);
     addEnsureCapacity(code);
     addAddValue(code);
+    addAddAllValues(code);
     addBuild(code, "build");
     addBuild(code, "buildPartial");
     code.addLine("}");
@@ -87,6 +97,7 @@ public class BuildableList extends Excerpt {
         .addLine("public %s get(int index) {", element.builderType())
         .addLine("  Object element = elements.get(index);")
         .addLine("  if (element instanceof %s) {", element.type().asElement());
+    convertToArrayList(code);
     convertToBuilder("element", code);
     code.addLine("    elements.set(index, element);")
         .addLine("  }")
@@ -97,8 +108,9 @@ public class BuildableList extends Excerpt {
   private void addSet(SourceBuilder code) {
     code.addLine("")
         .addLine("@Override")
-        .addLine("public %1$s set(int index, %1$s element) {", element.builderType())
-        .addLine("  Object oldElement = elements.set(index, element);")
+        .addLine("public %1$s set(int index, %1$s element) {", element.builderType());
+    convertToArrayList(code);
+    code.addLine("  Object oldElement = elements.set(index, element);")
         .addLine("  if (oldElement instanceof %s) {", element.type().asElement());
     convertToBuilder("oldElement", code);
     code.addLine("  }")
@@ -109,16 +121,18 @@ public class BuildableList extends Excerpt {
   private void addAdd(SourceBuilder code) {
     code.addLine("")
         .addLine("@Override")
-        .addLine("public void add(int index, %s element) {", element.builderType())
-        .addLine("  elements.add(index, element);")
+        .addLine("public void add(int index, %s element) {", element.builderType());
+    convertToArrayList(code);
+    code.addLine("  elements.add(index, element);")
         .addLine("}");
   }
 
   private void addRemove(SourceBuilder code) {
     code.addLine("")
         .addLine("@Override")
-        .addLine("public %s remove(int index) {", element.builderType())
-        .addLine("  Object oldElement = elements.remove(index);")
+        .addLine("public %s remove(int index) {", element.builderType());
+    convertToArrayList(code);
+    code.addLine("  Object oldElement = elements.remove(index);")
         .addLine("  if (oldElement instanceof %s) {", element.type().asElement());
     convertToBuilder("oldElement", code);
     code.addLine("  }")
@@ -128,38 +142,76 @@ public class BuildableList extends Excerpt {
 
   private static void addEnsureCapacity(SourceBuilder code) {
     code.addLine("")
-        .addLine("void ensureCapacity(int minCapacity) {")
-        .addLine("  elements.ensureCapacity(minCapacity);")
+        .addLine("void ensureCapacity(int minCapacity) {");
+    if (code.feature(GUAVA).isAvailable()) {
+      convertToArrayList(code);
+      code.add("  ((%s) elements)", ArrayList.class);
+    } else {
+      code.add("  elements");
+    }
+    code.add(".ensureCapacity(minCapacity);%n")
         .addLine("}");
   }
 
   private void addAddValue(SourceBuilder code) {
     code.addLine("")
         .addLine("void addValue(%s element) {", element.type())
-        .add(PreconditionExcerpts.checkNotNullPreamble("element"))
-        .addLine("  elements.add(%s);", PreconditionExcerpts.checkNotNullInline("element"))
+        .add(PreconditionExcerpts.checkNotNullPreamble("element"));
+    convertToArrayList(code);
+    code.addLine("  elements.add(%s);", PreconditionExcerpts.checkNotNullInline("element"))
+        .addLine("}");
+  }
+
+  private void addAddAllValues(SourceBuilder code) {
+    if (!code.feature(GUAVA).isAvailable()) {
+      return;
+    }
+    code.addLine("")
+        .addLine("void addAllValues(%s<? extends %s> values) {", Iterable.class, element.type())
+        .addLine("  if (elements.isEmpty() && values instanceof %s) {", ImmutableList.class)
+        .addLine("    elements = (%s) values;", ImmutableList.class)
+        .addLine("  } else {");
+    convertToArrayList(code);
+    code.addLine("    if (values instanceof %s) {", Collection.class)
+        .addLine("      int newSize = elements.size() + ((%s) values).size();", Collection.class)
+        .addLine("      ((%s) elements).ensureCapacity(newSize);", ArrayList.class)
+        .addLine("    }")
+        .add(Excerpts.forEach(element.type(), "values", "addValue"))
+        .addLine("  }")
         .addLine("}");
   }
 
   private void addBuild(SourceBuilder code, String buildMethod) {
     code.addLine("")
-        .addLine("%s<%s> %s() {", List.class, element.type(), buildMethod)
-        .addLine("  switch (elements.size()) {")
-        .addLine("    case 0:")
-        .addLine("      return %s.emptyList();", Collections.class)
-        .addLine("    case 1:")
-        .addLine("      return %s.singletonList(%s(elements.get(0)));",
-            Collections.class, buildMethod)
-        .addLine("    default:")
-        .addLine("      Object[] values = new Object[elements.size()];")
-        .addLine("      for (int i = 0; i < elements.size(); i++) {")
-        .addLine("        values[i] = %s(elements.get(i));", buildMethod)
-        .addLine("      }")
-        .addLine("      return (%1$s<%2$s>)(%1$s<?>)", List.class, element.type())
-        .addLine("          %s.unmodifiableList(%s.asList(values));",
-            Collections.class, Arrays.class)
-        .addLine("  }")
-        .addLine("}")
+        .addLine("%s<%s> %s() {", List.class, element.type(), buildMethod);
+    if (code.feature(GUAVA).isAvailable()) {
+      code.addLine("  if (elements instanceof %s) {", ImmutableList.class)
+          .addLine("    return (%s<%s>) elements;", ImmutableList.class, element.type())
+          .addLine("  }")
+          .addLine("  %1$s.Builder<%2$s> values = %1$s.builder();",
+              ImmutableList.class, element.type())
+          .addLine("  for (Object element : elements) {")
+          .addLine("    values.add(%s(element));", buildMethod)
+          .addLine("  }")
+          .addLine("  return values.build();");
+    } else {
+      code.addLine("  switch (elements.size()) {")
+          .addLine("    case 0:")
+          .addLine("      return %s.emptyList();", Collections.class)
+          .addLine("    case 1:")
+          .addLine("      return %s.singletonList(%s(elements.get(0)));",
+              Collections.class, buildMethod)
+          .addLine("    default:")
+          .addLine("      Object[] values = new Object[elements.size()];")
+          .addLine("      for (int i = 0; i < elements.size(); i++) {")
+          .addLine("        values[i] = %s(elements.get(i));", buildMethod)
+          .addLine("      }")
+          .addLine("      return (%1$s<%2$s>)(%1$s<?>)", List.class, element.type())
+          .addLine("          %s.unmodifiableList(%s.asList(values));",
+              Collections.class, Arrays.class)
+          .addLine("  }");
+    }
+    code.addLine("}")
         .addLine("")
         .addLine("private %s %s(Object element) {", element.type(), buildMethod)
         .addLine("  if (element instanceof %s) {", element.type().asElement())
@@ -168,6 +220,14 @@ public class BuildableList extends Excerpt {
         .addLine("    return ((%s) element).%s();", element.builderType(), buildMethod)
         .addLine("  }")
         .addLine("}");
+  }
+
+  private static void convertToArrayList(SourceBuilder code) {
+    if (code.feature(GUAVA).isAvailable()) {
+      code.addLine("if (elements instanceof %s) {", ImmutableList.class)
+          .addLine("  elements = new %s(elements);", ArrayList.class)
+          .addLine("}");
+    }
   }
 
   @Override
