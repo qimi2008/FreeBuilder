@@ -174,33 +174,55 @@ task shadowTest {
   }
 }
 
-//// Java 9 support (for tests) //////////////////////////////////
-if (!hasProperty('java9Home') && System.env.containsKey('JAVA_9_HOME')) {
-  project.ext.java9Home = System.env['JAVA_9_HOME']
-}
-assert hasProperty('java9Home') : "Set the property 'java9Home' in your your gradle.properties pointing to a Java 9 installation"
-def java9Path = new File(java9Home, 'bin')
-def java9 = [:].withDefault { execName ->
-  def executable = new File(java9Path, execName)
-  assert executable.exists() : "There is no ${execName} executable in ${java9Path}"
-  executable.toString()
-}
+//// Java 6/7/9 support //////////////////////////////////////////
+def javaBin(int version) {
+  String propertyName = "java${version}Home"
+  String envName = "JAVA_${version}_HOME"
+  String javaPath
+  if (hasProperty(propertyName)) {
+    javaPath = getProperty(propertyName)
+  } else if (System.env.containsKey(envName)) {
+    javaPath = System.env[envName]
+  }
+  def javaBin = [:].withDefault { execName ->
+    if (javaPath == null) {
+      throw new RuntimeException(
+          "Set the property $propertyName in your your gradle.properties "
+              + " pointing to a Java $version installation")
+    }
+    def executable = new File(new File(javaPath, 'bin'), execName)
+    assert executable.exists() : "There is no ${execName} executable in ${javaPath}"
+    executable.toString()
+  }
 
-afterEvaluate {
-  tasks.withType(JavaCompile) {
-    if (targetCompatibility == "1.9") {
-      options.with {
-        fork = true
-        forkOptions.executable = java9.javac
+  afterEvaluate {
+    tasks.withType(JavaCompile) {
+      if (targetCompatibility == "1.$version") {
+        doFirst{
+          options.with {
+            fork = true
+            forkOptions.executable = javaBin.javac
+          }
+        }
+      }
+    }
+    if (version == 9 && javaPath != null) {
+      tasks.withType(Test) {
+        doFirst {
+          if (executable == javaBin.java) {
+            jvmArgs += ['--add-opens', 'java.base/java.lang=ALL-UNNAMED']
+          }
+        }
       }
     }
   }
-  tasks.withType(Test) {
-    if (executable == java9.java) {
-      jvmArgs += ['--add-opens', 'java.base/java.lang=ALL-UNNAMED']
-    }
-  }
+
+
+  return javaBin
 }
+def java6 = javaBin(6)
+def java7 = javaBin(7)
+def java9 = javaBin(9)
 
 //// Vanilla integration tests ///////////////////////////////////
 configurations {
